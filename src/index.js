@@ -1,7 +1,7 @@
 import { createHmac } from 'crypto';
 import SteamUser from 'steam-user';
 import SteamCommunity from 'steamcommunity';
-import logger from '../utils/logger.js';
+import logger from './utils/logger.js';
 
 const client = new SteamUser();
 const community = new SteamCommunity();
@@ -69,7 +69,7 @@ export async function sendSteamGroupMessage(notification) {
 }
 
 function formatSteamMessage(notification) {
-  return `🎮 FREE WEEKEND ALERT!\n\n${notification.title}\n\n${notification.description}\n\nStore Link: ${notification.url}\n\nFree Until: ${notification.freeUntil || 'Check Steam store for details'}\n\nDon't miss out!`;
+  return `🎮 FREE WEEKEND ALERT!\n\n${notification.title}\n\n${notification.description}\n\nStore Link: ${notification.url}\n\nFree Until: ${notification.freeUntil || 'Check Steam store for details'}`;
 }
 
 function generateSteamGuardCode(sharedSecret) {
