@@ -1,13 +1,13 @@
 import logger from '../utils/logger.js';
-import { scrapeFreeSteamGames } from '../scrapers/steamScraper.js';
-import { getDatabase } from '../db/database.js';
+import { scrapeFreeSteamGames } from '../scrapers/steamSteamScraper.js';
+import { getDatabase, addGame } from '../db/database.js';
 import { notifyNewGames } from '../notifiers/notificationManager.js';
 
 let checkInterval = null;
-let isRunning = false;
+let botRunning = false;
 
 export async function startBot() {
-  if (isRunning) {
+  if (botRunning) {
     logger.warn('Bot is already running');
     return;
   }
@@ -25,7 +25,7 @@ export async function startBot() {
     await performCheck();
   }, checkIntervalMs);
 
-  isRunning = true;
+  botRunning = true;
   logger.info('Bot is now running and monitoring for free weekends');
 }
 
@@ -34,7 +34,7 @@ export function stopBot() {
     clearInterval(checkInterval);
     checkInterval = null;
   }
-  isRunning = false;
+  botRunning = false;
   logger.info('Bot stopped');
 }
 
@@ -46,29 +46,36 @@ async function performCheck() {
     if (games && games.length > 0) {
       logger.info(`Found ${games.length} free weekend games`);
       
-      // Check database for new games
-      const db = getDatabase();
       const newGames = [];
       
       for (const game of games) {
-        const exists = db.prepare('SELECT id FROM games WHERE app_id = ?').get(game.appId);
+        // Check if game already exists in database
+        const db = getDatabase();
         
-        if (!exists) {
-          // Add to database
-          db.prepare(`
-            INSERT INTO games (app_id, title, url, free_until, notified)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(game.appId, game.title, game.url, game.freeUntil, 0);
-          newGames.push(game);
-        }
+        db.get('SELECT id FROM games WHERE app_id = ?', [game.appId], (err, row) => {
+          if (err) {
+            logger.error(`Error checking game ${game.appId}:`, err.message);
+            return;
+          }
+          
+          if (!row) {
+            // Add new game to database
+            addGame(game.appId, game.title, game.url, game.freeUntil);
+            newGames.push(game);
+            logger.info(`Added new game to database: ${game.title}`);
+          }
+        });
       }
       
-      if (newGames.length > 0) {
-        logger.info(`Found ${newGames.length} new free weekend games to announce`);
-        await notifyNewGames(newGames);
-      } else {
-        logger.info('No new games since last check');
-      }
+      // Notify after a short delay to allow database writes
+      setTimeout(async () => {
+        if (newGames.length > 0) {
+          logger.info(`Found ${newGames.length} new free weekend games to announce`);
+          await notifyNewGames(newGames);
+        } else {
+          logger.info('No new games since last check');
+        }
+      }, 1000);
     } else {
       logger.info('No free weekend games currently available');
     }
@@ -77,6 +84,6 @@ async function performCheck() {
   }
 }
 
-export function isRunning() {
-  return isRunning;
+export function isBotRunning() {
+  return botRunning;
 }
