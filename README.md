@@ -6,7 +6,7 @@
 <img src="https://img.shields.io/badge/License-MIT-77216F?style=for-the-badge" alt="MIT License">
 <img src="https://img.shields.io/badge/Platform-Cross--Platform-5E2750?style=for-the-badge" alt="Cross-Platform">
 
-<strong>A Node.js bot that monitors Steam for real free weekend listings and automatically posts alerts to your Steam group chat.</strong>
+<strong>A WIP Node.js bot that monitors Steam for real free weekend listings and automatically posts alerts to your Steam group chat.</strong>
 
 [🚀 Quick Start](#-quick-start) • [📖 Configuration](#-configuration) • [🤝 Contributing](#-contributing) • [⚖️ License](#-license)
 
