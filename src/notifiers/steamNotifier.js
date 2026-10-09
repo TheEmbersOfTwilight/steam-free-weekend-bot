@@ -1,130 +1,123 @@
-import SteamUser from 'steam-user';
-import SteamCommunity from 'steamcommunity';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 import logger from '../utils/logger.js';
+import { upsertGame, getUnnotifiedGames, markNotified, logNotification } from '../db/database.js';
+import { sendNotification } from '../notifiers/notificationManager.js';
 
-const client = new SteamUser();
-const community = new SteamCommunity();
+const STEAM_SPECIALS_URL = 'https://store.steampowered.com/specials';
+const FREE_WEEKEND_PATTERNS = [
+  /free weekend/i,
+  /free.*weekend/i,
+  /weekend.*free/i,
+  /this weekend.*free/i,
+  /free to play.*weekend/i,
+  /weekend.*free to play/i
+];
 
-let isLoggedIn = false;
+export async function checkFreeWeekends() {
+  try {
+    logger.info('Checking Steam for actual free weekend listings...');
 
-/**
- * Initialize Steam client and login
- */
-export async function initSteamClient() {
-  return new Promise((resolve, reject) => {
-    if (isLoggedIn) {
-      resolve();
-      return;
+    const games = await fetchFeaturedWeekendGames();
+    if (!games || games.length === 0) {
+      logger.info('No actual Steam free weekend games found in the current scrape.');
+      return [];
     }
 
-    client.on('loggedOn', () => {
-      logger.info('Successfully logged into Steam');
-      isLoggedIn = true;
-      community.setCookies(client.cookieJar.getCookies());
-      resolve();
-    });
+    logger.info(`Found ${games.length} Steam free weekend game(s)`);
 
-    client.on('error', (error) => {
-      logger.error('Steam client error', error.message);
-      reject(error);
-    });
-
-    try {
-      client.logOn({
-        accountName: process.env.STEAM_BOT_USERNAME,
-        password: process.env.STEAM_BOT_PASSWORD,
-        ...(process.env.STEAM_SHARED_SECRET && {
-          twoFactorCode: generateSteamGuardCode(process.env.STEAM_SHARED_SECRET)
-        })
-      });
-    } catch (error) {
-      logger.error('Failed to initiate Steam login', error.message);
-      reject(error);
+    for (const game of games) {
+      try {
+        await upsertGame(game);
+      } catch (error) {
+        logger.warn(`Unable to save game ${game.name}`, error.message);
+      }
     }
+
+    const unnotified = await getUnnotifiedGames();
+    logger.info(`${unnotified.length} free weekend game(s) require notification`);
+
+    for (const game of unnotified) {
+      try {
+        await sendNotification({
+          title: `🎮 ${game.name} is free this weekend!`,
+          description: `${game.name} is currently part of Steam's free weekend promotion.`,
+          url: game.store_url,
+          image: game.image_url,
+          freeUntil: game.free_until,
+          appId: game.app_id
+        });
+
+        await markNotified(game.app_id);
+        await logNotification(game.app_id, 'steam_group', `Free weekend alert sent for ${game.name}`, 'success');
+      } catch (error) {
+        logger.error(`Failed to notify for ${game.name}`, error.message);
+        await logNotification(game.app_id, 'steam_group', error.message, 'error');
+      }
+    }
+
+    return games;
+  } catch (error) {
+    logger.error('Steam free weekend check failed', error.message);
+    return [];
+  }
+}
+
+async function fetchFeaturedWeekendGames() {
+  const response = await axios.get(STEAM_SPECIALS_URL, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    }
+  });
+
+  const $ = cheerio.load(response.data);
+  const results = [];
+  const cardSet = $('.saleitembrowser_widget, .salepreviewwidgets, .saleitem, .game_capsule');
+
+  cardSet.each((_, element) => {
+    const $card = $(element);
+    const cardHtml = $card.html() || '';
+    const cardText = $card.text().replace(/\s+/g, ' ').trim();
+
+    const shouldInclude = FREE_WEEKEND_PATTERNS.some((pattern) => pattern.test(cardText) || pattern.test(cardHtml));
+    if (!shouldInclude) return;
+
+    const name = $card.find('.title').first().text().trim()
+      || $card.find('a[href*="/app/"]').first().text().trim()
+      || $card.find('a').first().text().trim();
+
+    const appLink = $card.find('a[href*="/app/"]').first().attr('href')
+      || $card.find('a[href*="/app/"]').attr('href');
+
+    const image = $card.find('img').first().attr('src') || $card.find('img').first().attr('data-src');
+    const appId = extractAppId(appLink);
+
+    if (!name || !appId) return;
+
+    results.push({
+      app_id: appId,
+      name,
+      store_url: appLink ? `https://store.steampowered.com${appLink}` : `https://store.steampowered.com/app/${appId}`,
+      image_url: image,
+      free_until: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(),
+      discount_percent: 100
+    });
+  });
+
+  return dedupeGames(results);
+}
+
+function dedupeGames(games) {
+  const seen = new Set();
+  return games.filter((game) => {
+    if (seen.has(game.app_id)) return false;
+    seen.add(game.app_id);
+    return true;
   });
 }
 
-/**
- * Send message to Steam group chat
- */
-export async function sendSteamGroupMessage(notification) {
-  try {
-    await initSteamClient();
-
-    const groupId = process.env.TARGET_STEAM_GROUP_ID;
-    const message = formatSteamMessage(notification);
-
-    logger.info(`Sending message to Steam group ${groupId}`);
-
-    return new Promise((resolve, reject) => {
-      community.postGroupAnnouncement(groupId, message, '', (error) => {
-        if (error) {
-          logger.error('Failed to post to Steam group', error.message);
-          reject(error);
-        } else {
-          logger.info(`Successfully posted to Steam group: ${notification.title}`);
-          resolve(true);
-        }
-      });
-    });
-  } catch (error) {
-    logger.error('Steam group message failed', error.message);
-    throw error;
-  }
-}
-
-/**
- * Format notification as Steam group message
- */
-function formatSteamMessage(notification) {
-  return `🎮 FREE WEEKEND ALERT!\n\n${notification.title}\n\n${notification.description}\n\nStore Link: ${notification.url}\n\nFree Until: ${notification.freeUntil || 'Check Steam store for details'}\n\nDon't miss out!`;
-}
-
-/**
- * Generate Steam Guard code from shared secret
- */
-function generateSteamGuardCode(sharedSecret) {
-  // Base32 decode the shared secret
-  const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let decodedSecret = Buffer.alloc(Math.ceil((sharedSecret.length * 5) / 8));
-  
-  let bitOffset = 0;
-  let bitCount = 0;
-  
-  for (let i = 0; i < sharedSecret.length; i++) {
-    const byte = BASE32_ALPHABET.indexOf(sharedSecret[i].toUpperCase());
-    if (byte === -1) throw new Error('Invalid base32 character');
-    
-    decodedSecret[Math.floor(bitOffset / 8)] |= (byte << (3 + (bitOffset % 8))) & 0xFF;
-    bitOffset += 5;
-  }
-
-  // Generate TOTP code
-  const crypto = await import('crypto');
-  const time = Math.floor(Date.now() / 30000);
-  const timeBuffer = Buffer.alloc(8);
-  timeBuffer.writeBigInt64BE(BigInt(time), 0);
-  
-  const hmac = crypto.createHmac('sha1', decodedSecret);
-  hmac.update(timeBuffer);
-  const hash = hmac.digest();
-  
-  const offset = hash[hash.length - 1] & 0x0F;
-  const code = (hash[offset] & 0x7F) << 24 |
-               (hash[offset + 1] & 0xFF) << 16 |
-               (hash[offset + 2] & 0xFF) << 8 |
-               (hash[offset + 3] & 0xFF);
-  
-  return (code % 100000).toString().padStart(5, '0');
-}
-
-/**
- * Disconnect from Steam
- */
-export function disconnectSteam() {
-  if (client) {
-    client.logOff();
-    isLoggedIn = false;
-    logger.info('Disconnected from Steam');
-  }
+function extractAppId(url) {
+  if (!url) return null;
+  const match = url.match(/\/app\/(\d+)/i);
+  return match ? match[1] : null;
 }
