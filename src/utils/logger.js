@@ -1,10 +1,27 @@
+const LOG_LEVELS = {
+  ERROR: 'ERROR',
+  WARN: 'WARN',
+  INFO: 'INFO',
+  DEBUG: 'DEBUG'
+};
+
 const logger = {
-  info: (message, ...extra) => console.log(`[INFO] ${new Date().toISOString()} ${message}`, ...extra),
-  warn: (message, ...extra) => console.warn(`[WARN] ${new Date().toISOString()} ${message}`, ...extra),
-  error: (message, ...extra) => console.error(`[ERROR] ${new Date().toISOString()} ${message}`, ...extra),
-  debug: (message, ...extra) => {
+  error: (message, details = '') => {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] [${LOG_LEVELS.ERROR}] ${message}`, details);
+  },
+  warn: (message, details = '') => {
+    const timestamp = new Date().toISOString();
+    console.warn(`[${timestamp}] [${LOG_LEVELS.WARN}] ${message}`, details);
+  },
+  info: (message, details = '') => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [${LOG_LEVELS.INFO}] ${message}`, details);
+  },
+  debug: (message, details = '') => {
     if (process.env.DEBUG === 'true') {
-      console.log(`[DEBUG] ${new Date().toISOString()} ${message}`, ...extra);
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] [${LOG_LEVELS.DEBUG}] ${message}`, details);
     }
   }
 };
