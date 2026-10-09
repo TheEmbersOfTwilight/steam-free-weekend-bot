@@ -17,7 +17,7 @@
     "dotenv": "^16.4.5",
     "sqlite3": "^5.1.6",
     "steam-user": "^5.0.0",
-    "steamcommunity": "^1.2.1"
+    "steamcommunity": "^3.50.3"
   },
   "engines": {
     "node": ">=18.0.0"
