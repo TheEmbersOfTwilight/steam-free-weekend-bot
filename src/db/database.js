@@ -1,5 +1,4 @@
 import sqlite3 from 'sqlite3';
-import Database from 'better-sqlite3';
 import logger from '../utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,13 +10,16 @@ let db = null;
 
 export function initializeDatabase() {
   try {
-    // Use better-sqlite3 for sync operations
-    db = new Database(dbPath);
-    
+    db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        logger.error('Failed to open SQLite database:', err.message);
+        throw err;
+      }
+    });
+
     logger.info(`Database initialized at ${dbPath}`);
-    
-    // Create games table if it doesn't exist
-    db.exec(`
+
+    db.run(`
       CREATE TABLE IF NOT EXISTS games (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         app_id INTEGER UNIQUE NOT NULL,
@@ -28,9 +30,14 @@ export function initializeDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
-    `);
-    
-    logger.info('Database tables created/verified');
+    `, (err) => {
+      if (err) {
+        logger.error('Failed to create database table:', err.message);
+        throw err;
+      }
+      logger.info('Database tables created/verified');
+    });
+
     return db;
   } catch (error) {
     logger.error('Failed to initialize database:', error.message);
@@ -55,22 +62,43 @@ export function closeDatabase() {
 
 export function addGame(appId, title, url, freeUntil) {
   try {
-    const stmt = db.prepare(`
-      INSERT OR IGNORE INTO games (app_id, title, url, free_until)
-      VALUES (?, ?, ?, ?)
-    `);
-    
-    return stmt.run(appId, title, url, freeUntil);
+    if (!db) {
+      initializeDatabase();
+    }
+
+    db.run(
+      `INSERT OR IGNORE INTO games (app_id, title, url, free_until) VALUES (?, ?, ?, ?)`,
+      [appId, title, url, freeUntil],
+      (err) => {
+        if (err) {
+          logger.error('Error adding game to database:', err.message);
+        }
+      }
+    );
+
+    return true;
   } catch (error) {
     logger.error('Error adding game to database:', error.message);
-    return null;
+    return false;
   }
 }
 
 export function getUnnotifiedGames() {
   try {
-    const stmt = db.prepare('SELECT * FROM games WHERE notified = 0');
-    return stmt.all();
+    if (!db) {
+      initializeDatabase();
+    }
+
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM games WHERE notified = 0', [], (err, rows) => {
+        if (err) {
+          logger.error('Error fetching unnotified games:', err.message);
+          reject(err);
+          return;
+        }
+        resolve(rows);
+      });
+    });
   } catch (error) {
     logger.error('Error fetching unnotified games:', error.message);
     return [];
@@ -79,10 +107,19 @@ export function getUnnotifiedGames() {
 
 export function markGameNotified(appId) {
   try {
-    const stmt = db.prepare('UPDATE games SET notified = 1 WHERE app_id = ?');
-    return stmt.run(appId);
+    if (!db) {
+      initializeDatabase();
+    }
+
+    db.run('UPDATE games SET notified = 1 WHERE app_id = ?', [appId], (err) => {
+      if (err) {
+        logger.error('Error marking game as notified:', err.message);
+      }
+    });
+
+    return true;
   } catch (error) {
-    logger.error('Error marking game as notified:', error.message);
-    return null;
+    logger.error('Error marking game as notified:', err.message);
+    return false;
   }
 }
