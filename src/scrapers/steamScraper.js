@@ -16,6 +16,8 @@ export async function checkFreeWeekends() {
       return [];
     }
 
+    logger.info(`Found ${games.length} free weekend game(s)`);
+
     for (const game of games) {
       try {
         await upsertGame(game);
@@ -25,6 +27,7 @@ export async function checkFreeWeekends() {
     }
 
     const unnotified = await getUnnotifiedGames();
+    logger.info(`${unnotified.length} games require notification`);
 
     for (const game of unnotified) {
       try {
@@ -38,10 +41,10 @@ export async function checkFreeWeekends() {
         });
 
         await markNotified(game.app_id);
-        await logNotification(game.app_id, 'system', `Free weekend alert sent for ${game.name}`, 'success');
+        await logNotification(game.app_id, 'steam_group', `Free weekend alert sent for ${game.name}`, 'success');
       } catch (error) {
         logger.error(`Failed to notify for ${game.name}`, error.message);
-        await logNotification(game.app_id, 'system', error.message, 'error');
+        await logNotification(game.app_id, 'steam_group', error.message, 'error');
       }
     }
 

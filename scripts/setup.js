@@ -12,36 +12,33 @@ function ask(question) {
 }
 
 async function main() {
-  console.log('Steam Free Weekend Bot setup\n');
+  console.log('\n🤖 Steam Free Weekend Bot - Setup\n');
+  console.log('This wizard will configure the bot for Steam group chat notifications.\n');
 
-  const useDiscord = await ask('Enable Discord notifications? (y/N): ');
-  const useSteam = await ask('Enable Steam group notifications? (y/N): ');
+  const username = await ask('Steam bot account username: ');
+  const password = await ask('Steam bot account password: ');
+  const groupId = await ask('Target Steam group ID: ');
+  const shared = await ask('Steam Shared Secret (for 2FA, leave blank if not needed): ');
+  const identity = await ask('Steam Identity Secret (for 2FA, leave blank if not needed): ');
   const interval = await ask('Check interval in minutes (default 60): ');
 
   const envEntries = [
+    `STEAM_BOT_USERNAME=${username}`,
+    `STEAM_BOT_PASSWORD=${password}`,
+    `TARGET_STEAM_GROUP_ID=${groupId}`,
+    `STEAM_SHARED_SECRET=${shared || ''}`,
+    `STEAM_IDENTITY_SECRET=${identity || ''}`,
     `CHECK_INTERVAL_MINUTES=${interval || 60}`,
-    'DATABASE_PATH=./data/games.db'
+    `DATABASE_PATH=./data/games.db`
   ];
-
-  if (useDiscord.toLowerCase() === 'y') {
-    const webhook = await ask('Discord webhook URL: ');
-    envEntries.push(`DISCORD_WEBHOOK_URL=${webhook}`);
-  }
-
-  if (useSteam.toLowerCase() === 'y') {
-    const name = await ask('Steam bot account username: ');
-    const password = await ask('Steam bot password: ');
-    const groupId = await ask('Steam group ID: ');
-    envEntries.push(`STEAM_BOT_ACCOUNT_NAME=${name}`);
-    envEntries.push(`STEAM_BOT_PASSWORD=${password}`);
-    envEntries.push(`TARGET_STEAM_GROUP_ID=${groupId}`);
-  }
 
   const envPath = path.resolve(process.cwd(), '.env');
   fs.writeFileSync(envPath, `${envEntries.join('\n')}\n`, 'utf8');
 
-  console.log(`\nConfiguration saved to ${envPath}`);
-  console.log('You can now run: npm start');
+  console.log(`\n✅ Configuration saved to ${envPath}`);
+  console.log('\n📝 Next steps:');
+  console.log('1. npm install');
+  console.log('2. npm start\n');
   rl.close();
 }
 
