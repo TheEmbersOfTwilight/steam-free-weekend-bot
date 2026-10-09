@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Steam Free Weekend Bot</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #101822;
+        color: #eaf6ff;
+      }
+      main {
+        max-width: 900px;
+        margin: 60px auto;
+        padding: 24px;
+      }
+      h1, h2 {
+        color: #7dd3fc;
+      }
+      .card {
+        background: #162534;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+      code {
+        background: #0d1723;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      pre {
+        background: #0d1723;
+        padding: 16px;
+        overflow-x: auto;
+        border-radius: 8px;
+      }
+      a {
+        color: #7dd3fc;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Steam Free Weekend Bot</h1>
+      <p>
+        A Node.js project that checks Steam for free weekend promotions and sends alerts with Steam store links to a group chat or Discord channel.
+      </p>
+
+      <div class="card">
+        <h2>How it works</h2>
+        <ol>
+          <li>Scrapes Steam specials pages for featured offers.</li>
+          <li>Stores detected games in a local SQLite database.</li>
+          <li>Checks for new entries and sends a notification.</li>
+          <li>Links users directly to the Steam store page.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h2>Quick start</h2>
+        <pre><code>npm install
+cp .env.example .env
+npm run setup
+npm start</code></pre>
+      </div>
+
+      <div class="card">
+        <h2>Supported platforms</h2>
+        <p>Windows and Linux/macOS are both supported because the bot is built with Node.js and cross-platform scripts.</p>
+      </div>
+
+      <div class="card">
+        <h2>Repository</h2>
+        <p><a href="https://github.com/TheEmbersOfTwilight/steam-free-weekend-bot">GitHub Repository</a></p>
+      </div>
+    </main>
+  </body>
+</html>
