@@ -2,6 +2,8 @@ import { createHmac } from 'crypto';
 import SteamUser from 'steam-user';
 import SteamCommunity from 'steamcommunity';
 import logger from './utils/logger.js';
+import { initializeDatabase, closeDatabase } from './db/database.js';
+import { startBot, stopBot } from './bot/botManager.js';
 
 const client = new SteamUser();
 const community = new SteamCommunity();
@@ -124,3 +126,40 @@ export function disconnectSteam() {
     logger.info('Disconnected from Steam');
   }
 }
+
+// Main entry point
+async function main() {
+  try {
+    logger.info('🎮 Steam Free Weekend Bot starting...');
+    
+    // Initialize database
+    initializeDatabase();
+    
+    // Start the bot
+    await startBot();
+    
+    // Handle graceful shutdown
+    process.on('SIGINT', () => {
+      logger.info('Shutdown signal received, cleaning up...');
+      stopBot();
+      disconnectSteam();
+      closeDatabase();
+      process.exit(0);
+    });
+    
+    process.on('SIGTERM', () => {
+      logger.info('Termination signal received, cleaning up...');
+      stopBot();
+      disconnectSteam();
+      closeDatabase();
+      process.exit(0);
+    });
+    
+  } catch (error) {
+    logger.error('Failed to start bot:', error.message);
+    process.exit(1);
+  }
+}
+
+// Run the bot
+main();
